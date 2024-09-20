@@ -58,6 +58,7 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 n_layers=self.n_layers, size=self.size,
             )
             self.mean_net.to(ptu.device)
+            # print(f"mean_net {self.mean_net}")
             self.logstd = nn.Parameter(
                 torch.zeros(self.ac_dim, dtype=torch.float32, device=ptu.device)
             )
@@ -81,11 +82,54 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
             observation = obs[None]
 
         # TODO return the action that the policy prescribes
-        raise NotImplementedError
+        # Convert observation to PyTorch tensor
+        observation = ptu.from_numpy(observation)
+
+        # Forward pass: compute the action
+        if self.discrete:
+            print(f"discerete")
+            logits = self.logits_na(observation)
+            action_distribution = torch.distributions.Categorical(logits=logits)
+            action = action_distribution.sample()
+        else:
+            # print(f"NOT discerete")
+            # print(f"observation: {observation}")
+            mean = self.mean_net(observation)
+            action = mean
+            # print(f"mean: {mean}")
+            
+            # action_distribution = torch.distributions.Normal(mean, torch.exp(self.logstd))
+            # action = action_distribution.sample()
+
+        # Convert action to NumPy array
+        action = ptu.to_numpy(action)
+        return action
 
     # update/train this policy
     def update(self, observations, actions, **kwargs):
-        raise NotImplementedError
+        print(f" ************ observations update: {observations} ************ " )
+        # Convert observations and actions to PyTorch tensors
+        observations = ptu.from_numpy(observations)
+        actions = ptu.from_numpy(actions)
+
+        # Forward pass: compute predicted actions by passing observations through the network
+        if self.discrete:
+            predicted_actions = self.logits_na(observations)
+            loss = F.cross_entropy(predicted_actions, actions)
+        else:
+            predicted_actions = self.mean_net(observations)
+            loss = F.mse_loss(predicted_actions, actions)
+
+        # Backpropagation: compute gradients
+        self.optimizer.zero_grad()
+        loss.backward()
+
+        # Update the model parameters
+        self.optimizer.step()
+
+        return {
+            'Training Loss': ptu.to_numpy(loss),
+        }
 
     # This function defines the forward pass of the network.
     # You can return anything you want, but you should be able to differentiate
@@ -93,7 +137,15 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
     # return more flexible objects, such as a
     # `torch.distributions.Distribution` object. It's up to you!
     def forward(self, observation: torch.FloatTensor) -> Any:
-        raise NotImplementedError
+        print(f" ************ observation forward: {observation} ************ " )
+        if self.discrete:
+            #forward pass to get logits
+            logits = self.logits_na(observation)
+            return logits
+        else:
+            #forward pass to get mean
+            mean = self.mean_net(observation)
+            return mean
 
 
 #####################################################
@@ -108,8 +160,27 @@ class MLPPolicySL(MLPPolicy):
             self, observations, actions,
             adv_n=None, acs_labels_na=None, qvals=None
     ):
+        
+        # Convert observations and actions to PyTorch tensors
+        observations = ptu.from_numpy(observations)
+        actions = ptu.from_numpy(actions)
+
+        # Forward pass: compute predicted actions by passing observations through the network
+        if self.discrete:
+            predicted_actions = self.logits_na(observations)
+        else:
+            predicted_actions = self.mean_net(observations)
+
         # TODO: update the policy and return the loss
-        loss = TODO
+        # Compute the loss between predicted actions and actual actions
+        loss = self.loss(predicted_actions, actions)
+
+        # Backpropagation: compute gradients
+        self.optimizer.zero_grad()
+        loss.backward()
+
+        # Update the model parameters
+        self.optimizer.step()
 
         return {
             # You can add extra logging information here, but keep this line

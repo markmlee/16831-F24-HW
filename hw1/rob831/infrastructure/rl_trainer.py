@@ -10,6 +10,7 @@ from rob831.infrastructure.logger import Logger
 from rob831.infrastructure import utils
 import pickle 
 
+import sys
 # how many rollouts to save as videos to tensorboard
 MAX_NVIDEO = 2
 # MAX_VIDEO_LEN = 40  # we overwrite this in the code below
@@ -42,6 +43,8 @@ class RL_Trainer(object):
             use_gpu=not self.params['no_gpu'],
             gpu_id=self.params['which_gpu']
         )
+        # ptu.init_gpu(use_gpu=True, gpu_id=0)
+        # ptu.set_device(0)
 
         #############
         ## ENV
@@ -119,7 +122,9 @@ class RL_Trainer(object):
                 self.params['batch_size']
             )  # HW1: implement this function below
             paths, envsteps_this_batch, train_video_paths = training_returns
+            print(f" *** len paths : {len(paths)}, envsteps_this_batch: {envsteps_this_batch},  train_video_paths: {train_video_paths} *** ")
             self.total_envsteps += envsteps_this_batch
+
 
             # relabel the collected obs with actions from a provided expert policy
             if relabel_with_expert and itr>=start_relabel_with_expert:
@@ -171,6 +176,15 @@ class RL_Trainer(object):
 
         # (2) collect `self.params['batch_size']` transitions
 
+        if itr == 0 and load_initial_expertdata:
+            print(f" *** This is for BC since itr == 0 and load_initial_expertdata: {load_initial_expertdata}")
+            with open(load_initial_expertdata, 'rb') as f:
+                loaded_paths = pickle.load(f)
+                
+                print(f" len of loaded_paths (trajectories): {len(loaded_paths)} ")
+                print(f" len of loaded_paths[0] (Trajectories): {len(loaded_paths[0])}, keys in loaded_paths[0]: {loaded_paths[0].keys()} ")
+            return loaded_paths, 0, None
+
         # TODO collect `batch_size` samples to be used for training
         # HINT1: use sample_trajectories from utils
         # HINT2: you want each of these collected rollouts to be of length self.params['ep_len']
@@ -196,13 +210,23 @@ class RL_Trainer(object):
             # TODO sample some data from the data buffer
             # HINT1: use the agent's sample function
             # HINT2: how much data = self.params['train_batch_size']
-            ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = TODO
+            ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch = self.agent.sample(self.params['train_batch_size'])
 
             # TODO use the sampled data to train an agent
             # HINT: use the agent's train function
             # HINT: keep the agent's training log for debugging
-            train_log = TODO
+            train_log = self.agent.train(ob_batch, ac_batch, re_batch, next_ob_batch, terminal_batch)
             all_logs.append(train_log)
+
+            # Print the training loss every 100 steps
+            if train_step % 100 == 0:
+                print(f"Training step {train_step}: Loss = {train_log['Training Loss']}")
+
+        # Print the average training loss for this iteration
+        if all_logs:
+            avg_training_loss = np.mean([log['Training Loss'] for log in all_logs])
+            print(f"Average training loss for this iteration: {avg_training_loss}")
+            
         return all_logs
 
     def do_relabel_with_expert(self, expert_policy, paths):
@@ -247,11 +271,12 @@ class RL_Trainer(object):
 
             # decide what to log
             logs = OrderedDict()
-            logs["Eval_AverageReturn"] = np.mean(eval_returns)
-            logs["Eval_StdReturn"] = np.std(eval_returns)
-            logs["Eval_MaxReturn"] = np.max(eval_returns)
-            logs["Eval_MinReturn"] = np.min(eval_returns)
-            logs["Eval_AverageEpLen"] = np.mean(eval_ep_lens)
+
+            logs["Eval_AverageReturn"] = float(np.mean(eval_returns))
+            logs["Eval_StdReturn"] = float(np.std(eval_returns))
+            logs["Eval_MaxReturn"] = float(np.max(eval_returns))
+            logs["Eval_MinReturn"] = float(np.min(eval_returns))
+            logs["Eval_AverageEpLen"] = float(np.mean(eval_ep_lens))
 
             logs["Train_AverageReturn"] = np.mean(train_returns)
             logs["Train_StdReturn"] = np.std(train_returns)

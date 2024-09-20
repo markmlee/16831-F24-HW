@@ -5,6 +5,13 @@ from rob831.infrastructure.rl_trainer import RL_Trainer
 from rob831.agents.bc_agent import BCAgent
 from rob831.policies.loaded_gaussian_policy import LoadedGaussianPolicy
 
+import sys
+import numpy as np
+import time
+
+import gym
+import torch
+
 class BC_Trainer(object):
 
     def __init__(self, params):
@@ -49,9 +56,46 @@ class BC_Trainer(object):
             expert_policy=self.loaded_expert_policy,
         )
 
+def run_expert_policy(params):
+    # Load the expert policy
+    print('Loading expert policy from...', params['expert_policy_file'])
+    expert_policy = LoadedGaussianPolicy(params['expert_policy_file'])
+    print('Done restoring expert policy...')
+
+    # Create the environment
+    env = gym.make(params['env_name'])
+    env.seed(params['seed'])
+    np.random.seed(params['seed'])
+    torch.manual_seed(params['seed'])
+
+    print(f"created env: {env}")
+
+    # Run the expert policy in the environment for two trajectories
+    num_trajectories = 2
+    total_rewards = []
+
+    for _ in range(num_trajectories):
+        obs = env.reset()
+        done = False
+        total_reward = 0
+        while not done:
+            action = expert_policy.get_action(obs)
+            action = np.squeeze(action)  # Remove the extra dimension
+            # print(f"dim of obs: {obs.shape} dim of action: {action.shape}")
+            obs, reward, done, _ = env.step(action)
+            total_reward += reward
+            env.render()
+        total_rewards.append(total_reward)
+
+    mean_reward = np.mean(total_rewards)
+    stddev_reward = np.std(total_rewards)
+
+    print(f"mean: {mean_reward} stddev: {stddev_reward}")
+
 def main():
     import argparse
     parser = argparse.ArgumentParser()
+    parser.add_argument('--problem_num', '-p', type=int, default=1) # problem number to run (-p 11, 12, 13, 14, 21, 22, 23, 24)
     parser.add_argument('--expert_policy_file', '-epf', type=str, required=True)  # relative to where you're running this script from
     parser.add_argument('--expert_data', '-ed', type=str, required=True) #relative to where you're running this script from
     parser.add_argument('--env_name', '-env', type=str, help='choices: Ant-v2, Humanoid-v2, Walker-v2, HalfCheetah-v2, Hopper-v2', required=True)
@@ -59,12 +103,12 @@ def main():
     parser.add_argument('--do_dagger', action='store_true')
     parser.add_argument('--ep_len', type=int, default=1000)
 
-    parser.add_argument('--num_agent_train_steps_per_iter', type=int, default=1000)  # number of gradient steps for training policy (per iter in n_iter)
+    parser.add_argument('--num_agent_train_steps_per_iter', type=int, default=5000)  # number of gradient steps for training policy (per iter in n_iter)
     parser.add_argument('--n_iter', '-n', type=int, default=1)
 
     parser.add_argument('--batch_size', type=int, default=1000)  # training data collected (in the env) during each iteration
     parser.add_argument('--eval_batch_size', type=int,
-                        default=1000)  # eval data collected (in the env) for logging metrics
+                        default=10000)  # eval data collected (in the env) for logging metrics
     parser.add_argument('--train_batch_size', type=int,
                         default=100)  # number of sampled data points to be used per gradient/train step
 
@@ -83,6 +127,13 @@ def main():
 
     # convert args to dictionary
     params = vars(args)
+
+    ###################
+    ### RUN EXPERT POLICY
+    ###################
+    if args.problem_num == 11:
+        run_expert_policy(params)
+        sys.exit()
 
     ##################################
     ### CREATE DIRECTORY FOR LOGGING
