@@ -4,6 +4,8 @@ from typing import Any
 from torch import nn
 from torch.nn import functional as F
 from torch import optim
+import torch.optim.lr_scheduler as lr_scheduler
+
 
 import numpy as np
 import torch
@@ -22,6 +24,8 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                  size,
                  discrete=False,
                  learning_rate=1e-4,
+                 learning_rate_step=1000,
+                 learning_rate_gamma=0.9,
                  training=True,
                  nn_baseline=False,
                  **kwargs
@@ -35,6 +39,9 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         self.discrete = discrete
         self.size = size
         self.learning_rate = learning_rate
+        self.learning_rate_step = learning_rate_step
+        self.learning_rate_gamma = learning_rate_gamma
+        
         self.training = training
         self.nn_baseline = nn_baseline
 
@@ -67,6 +74,9 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
                 itertools.chain([self.logstd], self.mean_net.parameters()),
                 self.learning_rate
             )
+
+        # Initialize the learning rate scheduler
+        self.scheduler = lr_scheduler.StepLR(self.optimizer, step_size=learning_rate_step, gamma=learning_rate_gamma)
 
     ##################################
 
@@ -127,8 +137,15 @@ class MLPPolicy(BasePolicy, nn.Module, metaclass=abc.ABCMeta):
         # Update the model parameters
         self.optimizer.step()
 
+        # Step the scheduler
+        self.scheduler.step()
+
+        # Get the current learning rate
+        current_lr = self.scheduler.get_last_lr()[0]
+
         return {
             'Training Loss': ptu.to_numpy(loss),
+            'Learning Rate': current_lr,
         }
 
     # This function defines the forward pass of the network.
@@ -182,7 +199,14 @@ class MLPPolicySL(MLPPolicy):
         # Update the model parameters
         self.optimizer.step()
 
+        # Step the scheduler
+        self.scheduler.step()
+
+        # Get the current learning rate
+        current_lr = self.scheduler.get_last_lr()[0]
+
         return {
             # You can add extra logging information here, but keep this line
             'Training Loss': ptu.to_numpy(loss),
+            'Learning Rate': current_lr
         }

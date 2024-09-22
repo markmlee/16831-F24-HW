@@ -24,6 +24,8 @@ class BC_Trainer(object):
             'n_layers': params['n_layers'],
             'size': params['size'],
             'learning_rate': params['learning_rate'],
+            'learning_rate_step': params['learning_rate_step'],
+            'learning_rate_gamma': params['learning_rate_gamma'],
             'max_replay_buffer_size': params['max_replay_buffer_size'],
             }
 
@@ -112,9 +114,11 @@ def main():
     parser.add_argument('--train_batch_size', type=int,
                         default=100)  # number of sampled data points to be used per gradient/train step
 
-    parser.add_argument('--n_layers', type=int, default=2)  # depth, of policy to be learned
+    parser.add_argument('--n_layers', type=int, default=5)  # depth, of policy to be learned
     parser.add_argument('--size', type=int, default=64)  # width of each layer, of policy to be learned
     parser.add_argument('--learning_rate', '-lr', type=float, default=5e-3)  # LR for supervised learning
+    parser.add_argument('--learning_rate_step', '-lr_step', type=float, default=1000)  # LR for supervised learning
+    parser.add_argument('--learning_rate_gamma', '-lr_gamma', type=float, default=0.7)  # LR for supervised learning
 
     parser.add_argument('--video_log_freq', type=int, default=5)
     parser.add_argument('--scalar_log_freq', type=int, default=1)

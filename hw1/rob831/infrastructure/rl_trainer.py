@@ -104,6 +104,7 @@ class RL_Trainer(object):
 
             # decide if videos should be rendered/logged at this iteration
             if itr % self.params['video_log_freq'] == 0 and self.params['video_log_freq'] != -1:
+                print(f" ***************** LOG VIDEO AT ITERATION {itr} ***************** ")
                 self.log_video = True
             else:
                 self.log_video = False
@@ -189,7 +190,7 @@ class RL_Trainer(object):
         # HINT1: use sample_trajectories from utils
         # HINT2: you want each of these collected rollouts to be of length self.params['ep_len']
         print("\nCollecting data to be used for training...")
-        paths, envsteps_this_batch = TODO
+        paths, envsteps_this_batch = utils.sample_trajectories(self.env, collect_policy, batch_size, self.params['ep_len'])
 
         # collect more rollouts with the same policy, to be saved as videos in tensorboard
         # note: here, we collect MAX_NVIDEO rollouts, each of length MAX_VIDEO_LEN
@@ -220,13 +221,13 @@ class RL_Trainer(object):
 
             # Print the training loss every 100 steps
             if train_step % 100 == 0:
-                print(f"Training step {train_step}: Loss = {train_log['Training Loss']}")
+                print(f"Training step {train_step}: Loss = {train_log['Training Loss']}, LR = {train_log['Learning Rate']}")
 
         # Print the average training loss for this iteration
         if all_logs:
             avg_training_loss = np.mean([log['Training Loss'] for log in all_logs])
             print(f"Average training loss for this iteration: {avg_training_loss}")
-            
+
         return all_logs
 
     def do_relabel_with_expert(self, expert_policy, paths):
