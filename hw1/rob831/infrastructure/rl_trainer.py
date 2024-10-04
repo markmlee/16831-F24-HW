@@ -82,6 +82,9 @@ class RL_Trainer(object):
         agent_class = self.params['agent_class']
         self.agent = agent_class(self.env, self.params['agent_params'])
 
+        self.plot_mean_list = []
+        self.plot_std_list = []
+
     def run_training_loop(self, n_iter, collect_policy, eval_policy,
                         initial_expertdata=None, relabel_with_expert=False,
                         start_relabel_with_expert=1, expert_policy=None):
@@ -98,6 +101,9 @@ class RL_Trainer(object):
         # init vars at beginning of training
         self.total_envsteps = 0
         self.start_time = time.time()
+
+        list_eval_returns = []
+        list_eval_std_returns = []
 
         for itr in range(n_iter):
             print("\n\n********** Iteration %i ************"%itr)
@@ -142,12 +148,22 @@ class RL_Trainer(object):
 
                 # perform logging
                 print('\nBeginning logging procedure...')
-                self.perform_logging(
+                eval_return, eval_std_return = self.perform_logging(
                     itr, paths, eval_policy, train_video_paths, training_logs)
 
                 if self.params['save_params']:
                     print('\nSaving agent params')
                     self.agent.save('{}/policy_itr_{}.pt'.format(self.params['logdir'], itr))
+
+            #append the Eval_AverageReturn and Eval_StdReturn to the list
+            #TODO:
+        
+
+            print(f" *********** mean and std of returns: {eval_return}, {eval_std_return} ***********")
+            list_eval_returns.append(eval_return)
+            list_eval_std_returns.append(eval_std_return)
+
+        return list_eval_returns, list_eval_std_returns
 
     ####################################
     ####################################
@@ -302,3 +318,8 @@ class RL_Trainer(object):
             print('Done logging...\n\n')
 
             self.logger.flush()
+
+            eval_return = float(np.mean(eval_returns))
+            eval_std_return = float(np.std(eval_returns))
+
+            return eval_return, eval_std_return

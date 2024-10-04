@@ -11,6 +11,7 @@ import time
 
 import gym
 import torch
+import matplotlib.pyplot as plt
 
 class BC_Trainer(object):
 
@@ -47,9 +48,11 @@ class BC_Trainer(object):
         self.loaded_expert_policy = LoadedGaussianPolicy(self.params['expert_policy_file'])
         print('Done restoring expert policy...')
 
+        self.list_eval_returns, self.list_eval_std_returns = [], []
+
     def run_training_loop(self):
 
-        self.rl_trainer.run_training_loop(
+        list_eval_returns, list_eval_std_returns = self.rl_trainer.run_training_loop(
             n_iter=self.params['n_iter'],
             initial_expertdata=self.params['expert_data'],
             collect_policy=self.rl_trainer.agent.actor,
@@ -57,6 +60,35 @@ class BC_Trainer(object):
             relabel_with_expert=self.params['do_dagger'],
             expert_policy=self.loaded_expert_policy,
         )
+
+        self.list_eval_returns = list_eval_returns
+        self.list_eval_std_returns = list_eval_std_returns
+
+    def plot_learning_curve(self):
+        eval_mean = np.array(self.list_eval_returns)
+        eval_std = np.array(self.list_eval_std_returns)
+
+        # Extract the first mean value as the BC performance
+        bc_performance = eval_mean[0]
+
+        # Plot learning curve
+        plt.figure(figsize=(10, 6))
+        plt.plot(eval_mean, label='Eval_AverageReturn')
+        plt.fill_between(range(len(eval_mean)), 
+                         eval_mean - eval_std, 
+                         eval_mean + eval_std, 
+                         alpha=0.2, label='Eval_StdReturn')
+        
+        # Add a horizontal line for BC performance
+        plt.axhline(y=bc_performance, color='r', linestyle='--', label='BC Performance')
+        plt.text(0, bc_performance, 'BC', color='r', verticalalignment='bottom')
+
+        plt.xlabel('Number of Iterations')
+        plt.ylabel('Eval_AverageReturn')
+        plt.title('Learning Curve')
+        plt.legend()
+        plt.grid(True)
+        plt.show()
 
 def run_expert_policy(params):
     # Load the expert policy
@@ -167,6 +199,7 @@ def main():
 
     trainer = BC_Trainer(params)
     trainer.run_training_loop()
+    trainer.plot_learning_curve()
 
 if __name__ == "__main__":
     main()
